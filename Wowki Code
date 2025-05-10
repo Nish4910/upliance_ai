@@ -1,0 +1,119 @@
+#include <DHT.h>
+
+#define DHTPIN 15           
+#define DHTTYPE DHT22       
+#define LED_PIN 2           
+#define BUZZER_PIN 5        
+
+DHT dht(DHTPIN, DHTTYPE);
+
+#define IDLE 0
+#define HEATING 1
+#define STABILIZING 2
+#define TARGET_REACHED 3
+#define OVERHEAT 4
+
+int currentState = -1;
+
+void setup() {
+  Serial.begin(115200);
+  dht.begin();
+  pinMode(LED_PIN, OUTPUT);
+  pinMode(BUZZER_PIN, OUTPUT);
+}
+
+void loop() {
+  float temperature = dht.readTemperature();
+
+  if (isnan(temperature)) {
+    Serial.println("Failed to read from DHT sensor!");
+    delay(2000);
+    return;
+  }
+
+  int newState = getStateFromTemp(temperature);
+
+  if (newState != currentState) {
+    currentState = newState;
+    logState(temperature, currentState);
+  }
+
+  handleOutputs(currentState);
+  delay(2000);
+}
+
+int getStateFromTemp(float temp) {
+  if (temp < 10) return IDLE;
+  else if (temp >= 10 && temp < 55) return HEATING;
+  else if (temp >= 55 && temp < 65) return STABILIZING;
+  else if (temp >= 65 && temp < 75) return TARGET_REACHED;
+  else return OVERHEAT;
+}
+
+void handleOutputs(int state) {
+  switch (state) {
+    case IDLE:
+      digitalWrite(LED_PIN, LOW);
+      // Short buzz 2 times
+      for (int i = 0; i < 2; i++) {
+        digitalWrite(BUZZER_PIN, HIGH);
+        delay(500);
+        digitalWrite(BUZZER_PIN, LOW);
+        delay(500);
+      }
+      break;
+
+    case HEATING:
+      digitalWrite(LED_PIN, LOW);
+      digitalWrite(BUZZER_PIN, LOW);
+      break;
+
+    case STABILIZING:
+      fadeLED(LED_PIN, 5000); 
+      buzzOnce(1000);         
+      break;
+
+    case TARGET_REACHED:
+      digitalWrite(LED_PIN, HIGH);
+      digitalWrite(BUZZER_PIN, LOW);
+      break;
+
+    case OVERHEAT:
+      digitalWrite(LED_PIN, HIGH);
+      digitalWrite(BUZZER_PIN, HIGH);
+      break;
+  }
+}
+
+void fadeLED(int pin, int duration) {
+  int fadeTime = duration / 512;  
+  for (int i = 0; i < 256; i++) {
+    analogWrite(pin, i);
+    delay(fadeTime);
+  }
+  for (int i = 255; i >= 0; i--) {
+    analogWrite(pin, i);
+    delay(fadeTime);
+  }
+  analogWrite(pin, 0);
+}
+
+void buzzOnce(int duration) {
+  digitalWrite(BUZZER_PIN, HIGH);
+  delay(duration);
+  digitalWrite(BUZZER_PIN, LOW);
+}
+
+void logState(float temp, int state) {
+  Serial.print("Temp: ");
+  Serial.print(temp);
+  Serial.print(" °C | State: ");
+
+  switch (state) {
+    case IDLE: Serial.println("IDLE"); break;
+    case HEATING: Serial.println("HEATING"); break;
+    case STABILIZING: Serial.println("STABILIZING"); break;
+    case TARGET_REACHED: Serial.println("TARGET_REACHED"); break;
+    case OVERHEAT: Serial.println("OVERHEAT"); break;
+  }
+}
