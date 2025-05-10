@@ -1,4 +1,4 @@
-
+//Author == Nishant Behera
 #include <DHT.h>
 
 #define DHTPIN 15           
